@@ -1,6 +1,11 @@
 // Copyright (c) Dapplo and contributors. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System;
+using System.Net.Http;
+using Dapplo.HttpExtensions;
+using Dapplo.HttpExtensions.Factory;
+
 namespace Dapplo.Jira;
 
 /// <summary>
@@ -151,7 +156,7 @@ public static class IssueDomainExtensions
         var search = new JqlIssueSearch
         {
             Jql = jql,
-            ValidateQuery = true,
+            //ValidateQuery = true,
             MaxResults = page?.MaxResults ?? 20,
             StartAt = page?.StartAt ?? 0,
             Fields = fields ?? new List<string>(JiraConfig.SearchFields),
@@ -205,7 +210,19 @@ public static class IssueDomainExtensions
         Log.Debug().WriteLine("Searching via JQL: {0}", search.Jql);
 
         jiraClient.Behaviour.MakeCurrent();
-        var searchUri = jiraClient.JiraRestUri.AppendSegments("search");
+        var searchUri = jiraClient.JiraRestUri.AppendSegments("search", "jql");
+        //var result = default(SearchIssuesResult<Issue, JqlIssueSearch>);
+
+        //using (var client = HttpClientFactory.Create(searchUri))
+        //using (var httpRequestMessage = HttpRequestMessageFactory.CreatePost(searchUri, search))
+        //{
+        //    var httpResponse = await client.SendAsync(httpRequestMessage, cancellationToken).ConfigureAwait(false);
+
+        //    httpResponse.EnsureSuccessStatusCode();
+
+        //    var text = await httpResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+        //    text = string.Empty;
+        //}
 
         var response = await searchUri
             .PostAsync<HttpResponse<SearchIssuesResult<Issue, JqlIssueSearch>, Error>>(search, cancellationToken)

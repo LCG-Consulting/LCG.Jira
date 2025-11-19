@@ -1,4 +1,4 @@
-﻿// Copyright (c) Dapplo and contributors. All rights reserved.
+// Copyright (c) Dapplo and contributors. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Newtonsoft.Json;
@@ -31,10 +31,4 @@ public class JqlIssueSearch : Page
     /// </summary>
     [JsonProperty("jql")]
     public string Jql { get; set; }
-
-    /// <summary>
-    ///     Does the query (JQL) need to be validated?
-    /// </summary>
-    [JsonProperty("validateQuery")]
-    public bool ValidateQuery { get; set; } = true;
 }

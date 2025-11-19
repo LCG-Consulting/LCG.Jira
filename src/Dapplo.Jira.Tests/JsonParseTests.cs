@@ -1,4 +1,4 @@
-﻿// Copyright (c) Dapplo and contributors. All rights reserved.
+// Copyright (c) Dapplo and contributors. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Generic;
@@ -22,12 +22,28 @@ public class JsonParseTests
     public JsonParseTests(ITestOutputHelper testOutputHelper)
     {
         LogSettings.RegisterDefaultLogger<XUnitLogger>(LogLevels.Verbose, testOutputHelper);
-        _jsonSerializer = new JsonNetJsonSerializer();
+        _jsonSerializer = new JsonNetJsonSerializer()
+        {
+            Settings = new Newtonsoft.Json.JsonSerializerSettings()
+            {
+                MaxDepth = 129
+            }
+        };
+        
         _testFileLocation = FilesDir;
         if (!Directory.Exists(FilesDir))
         {
             _testFileLocation = Path.Combine(Path.GetDirectoryName(GetType().Assembly.Location), FilesDir);
         }
+    }
+
+    [Fact]
+    public void TestParseIssues()
+    {
+        var json = File.ReadAllText(Path.Combine(_testFileLocation, "issue.search.jql.response.json"));
+
+        var issue = (SearchIssuesResult<Issue, JqlIssueSearch>)_jsonSerializer.Deserialize(typeof(SearchIssuesResult<Issue, JqlIssueSearch>), json);
+        Assert.NotNull(issue);
     }
 
     [Fact]

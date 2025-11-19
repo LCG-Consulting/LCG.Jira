@@ -41,7 +41,7 @@ namespace Dapplo.Jira
             Behaviour = ConfigureBehaviour(new HttpBehaviour(), httpSettings);
 
             JiraBaseUri = baseUri;
-            JiraRestUri = baseUri.AppendSegments("rest", "api", "2");
+            JiraRestUri = baseUri.AppendSegments("rest", "api", "3");
             JiraAuthUri = baseUri.AppendSegments("rest", "auth", "1");
             JiraAgileRestUri = baseUri.AppendSegments("rest", "agile", "1.0");
             JiraGreenhopperRestUri = baseUri.AppendSegments("rest", "greenhopper", "1.0");
@@ -65,7 +65,13 @@ namespace Dapplo.Jira
 #endif
 
             // Using our own Json Serializer, implemented with Json.NET
-            behaviour.JsonSerializer = new JsonNetJsonSerializer();
+            var defaultJsonSerializerSettings = new JsonNetJsonSerializer().Settings;
+            defaultJsonSerializerSettings.MaxDepth = 128;
+
+            behaviour.JsonSerializer = new JsonNetJsonSerializer()
+            {
+                Settings = defaultJsonSerializerSettings
+            };
 
             behaviour.OnHttpRequestMessageCreated = httpMessage =>
             {
