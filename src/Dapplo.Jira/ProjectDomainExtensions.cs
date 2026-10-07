@@ -186,4 +186,199 @@ public static class ProjectDomainExtensions
         var response = await securityLevelUri.GetAsAsync<HttpResponse<SecurityLevels, Error>>(cancellationToken).ConfigureAwait(false);
         return response.HandleErrors().Levels;
     }
+
+    /// <summary>
+    ///	 Get all versions (releases) for a project
+    ///	 More information <a href="https://docs.atlassian.com/jira/REST/cloud/#api/2/project/{projectKeyOrId}/versions">here</a>
+    /// </summary>
+    /// <param name="jiraClient">IProjectDomain to bind the extension method to</param>
+    /// <param name="projectKey">project key or ID</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>IList with Version information</returns>
+    public static async Task<IList<Entities.Version>> GetVersionsAsync(this IProjectDomain jiraClient, string projectKey,
+        CancellationToken cancellationToken = default)
+    {
+        if (projectKey == null)
+        {
+            throw new ArgumentNullException(nameof(projectKey));
+        }
+
+        Log.Debug().WriteLine("Retrieving versions for project {0}", projectKey);
+
+        var versionsUri = jiraClient.JiraRestUri.AppendSegments("project", projectKey, "versions");
+
+        jiraClient.Behaviour.MakeCurrent();
+        var response = await versionsUri.GetAsAsync<HttpResponse<IList<Entities.Version>, Error>>(cancellationToken).ConfigureAwait(false);
+        return response.HandleErrors();
+    }
+
+    /// <summary>
+    ///	 Get a specific version (release) by ID
+    ///	 More information <a href="https://docs.atlassian.com/jira/REST/cloud/#api/2/version/{id}">here</a>
+    /// </summary>
+    /// <param name="jiraClient">IProjectDomain to bind the extension method to</param>
+    /// <param name="versionId">version ID</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>Version information</returns>
+    public static async Task<Entities.Version> GetVersionAsync(this IProjectDomain jiraClient, string versionId,
+        CancellationToken cancellationToken = default)
+    {
+        if (versionId == null)
+        {
+            throw new ArgumentNullException(nameof(versionId));
+        }
+
+        Log.Debug().WriteLine("Retrieving version with ID {0}", versionId);
+
+        var versionUri = jiraClient.JiraRestUri.AppendSegments("version", versionId);
+
+        jiraClient.Behaviour.MakeCurrent();
+        var response = await versionUri.GetAsAsync<HttpResponse<Entities.Version, Error>>(cancellationToken).ConfigureAwait(false);
+        return response.HandleErrors();
+    }
+
+    /// <summary>
+    ///	 Get all roles in a project
+    ///	 More information <a href="https://docs.atlassian.com/jira/REST/latest/#api/2/project/{projectIdOrKey}/role">here</a>
+    /// </summary>
+    /// <param name="jiraClient">IProjectDomain to bind the extension method to</param>
+    /// <param name="projectKey">project key or ID</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>IDictionary with role name and role URI</returns>
+    public static async Task<IDictionary<string, Uri>> GetRolesAsync(this IProjectDomain jiraClient, string projectKey,
+        CancellationToken cancellationToken = default)
+    {
+        if (projectKey == null)
+        {
+            throw new ArgumentNullException(nameof(projectKey));
+        }
+
+        Log.Debug().WriteLine("Retrieving roles for project {0}", projectKey);
+
+        var rolesUri = jiraClient.JiraRestUri.AppendSegments("project", projectKey, "role");
+
+        jiraClient.Behaviour.MakeCurrent();
+        var response = await rolesUri.GetAsAsync<HttpResponse<IDictionary<string, Uri>, Error>>(cancellationToken).ConfigureAwait(false);
+        return response.HandleErrors();
+    }
+
+    /// <summary>
+    ///	 Get role details and actors for a specific role in a project
+    ///	 More information <a href="https://docs.atlassian.com/jira/REST/latest/#api/2/project/{projectIdOrKey}/role/{id}">here</a>
+    /// </summary>
+    /// <param name="jiraClient">IProjectDomain to bind the extension method to</param>
+    /// <param name="projectKey">project key or ID</param>
+    /// <param name="roleId">role ID</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>ProjectRole with details and actors</returns>
+    public static async Task<ProjectRole> GetRoleAsync(this IProjectDomain jiraClient, string projectKey, long roleId,
+        CancellationToken cancellationToken = default)
+    {
+        if (projectKey == null)
+        {
+            throw new ArgumentNullException(nameof(projectKey));
+        }
+
+        Log.Debug().WriteLine("Retrieving role {0} for project {1}", roleId, projectKey);
+
+        var roleUri = jiraClient.JiraRestUri.AppendSegments("project", projectKey, "role", roleId);
+
+        jiraClient.Behaviour.MakeCurrent();
+        var response = await roleUri.GetAsAsync<HttpResponse<ProjectRole, Error>>(cancellationToken).ConfigureAwait(false);
+        return response.HandleErrors();
+    }
+
+    /// <summary>
+    ///	 Add an actor (user or group) to a project role
+    ///	 More information <a href="https://docs.atlassian.com/jira/REST/latest/#api/2/project/{projectIdOrKey}/role/{id}">here</a>
+    /// </summary>
+    /// <param name="jiraClient">IProjectDomain to bind the extension method to</param>
+    /// <param name="projectKey">project key or ID</param>
+    /// <param name="roleId">role ID</param>
+    /// <param name="user">user name or account ID to add (mutually exclusive with group)</param>
+    /// <param name="group">group name to add (mutually exclusive with user)</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>ProjectRole with updated actors</returns>
+    public static async Task<ProjectRole> AddActorToRoleAsync(this IProjectDomain jiraClient, string projectKey, long roleId,
+        string user = null, string group = null, CancellationToken cancellationToken = default)
+    {
+        if (projectKey == null)
+        {
+            throw new ArgumentNullException(nameof(projectKey));
+        }
+
+        if (user == null && group == null)
+        {
+            throw new ArgumentException("Either user or group must be specified");
+        }
+
+        if (user != null && group != null)
+        {
+            throw new ArgumentException("Cannot specify both user and group");
+        }
+
+        Log.Debug().WriteLine("Adding actor to role {0} in project {1}", roleId, projectKey);
+
+        var roleUri = jiraClient.JiraRestUri.AppendSegments("project", projectKey, "role", roleId);
+
+        var actorData = new Dictionary<string, object>();
+        if (user != null)
+        {
+            actorData["user"] = new[] { user };
+        }
+        else
+        {
+            actorData["group"] = new[] { group };
+        }
+
+        jiraClient.Behaviour.MakeCurrent();
+        var response = await roleUri.PostAsync<HttpResponse<ProjectRole, Error>>(actorData, cancellationToken).ConfigureAwait(false);
+        return response.HandleErrors();
+    }
+
+    /// <summary>
+    ///	 Remove an actor (user or group) from a project role
+    ///	 More information <a href="https://docs.atlassian.com/jira/REST/latest/#api/2/project/{projectIdOrKey}/role/{id}">here</a>
+    /// </summary>
+    /// <param name="jiraClient">IProjectDomain to bind the extension method to</param>
+    /// <param name="projectKey">project key or ID</param>
+    /// <param name="roleId">role ID</param>
+    /// <param name="user">user name or account ID to remove (mutually exclusive with group)</param>
+    /// <param name="group">group name to remove (mutually exclusive with user)</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    public static async Task RemoveActorFromRoleAsync(this IProjectDomain jiraClient, string projectKey, long roleId,
+        string user = null, string group = null, CancellationToken cancellationToken = default)
+    {
+        if (projectKey == null)
+        {
+            throw new ArgumentNullException(nameof(projectKey));
+        }
+
+        if (user == null && group == null)
+        {
+            throw new ArgumentException("Either user or group must be specified");
+        }
+
+        if (user != null && group != null)
+        {
+            throw new ArgumentException("Cannot specify both user and group");
+        }
+
+        Log.Debug().WriteLine("Removing actor from role {0} in project {1}", roleId, projectKey);
+
+        var roleUri = jiraClient.JiraRestUri.AppendSegments("project", projectKey, "role", roleId);
+
+        if (user != null)
+        {
+            roleUri = roleUri.ExtendQuery("user", user);
+        }
+        else
+        {
+            roleUri = roleUri.ExtendQuery("group", group);
+        }
+
+        jiraClient.Behaviour.MakeCurrent();
+        var response = await roleUri.DeleteAsync<HttpResponse>(cancellationToken).ConfigureAwait(false);
+        response.HandleStatusCode(HttpStatusCode.NoContent);
+    }
 }

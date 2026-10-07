@@ -24,7 +24,7 @@ public class Comment : BaseProperties<long>
     ///     The text of the comment
     /// </summary>
     [JsonProperty("body")]
-    public string Body { get; set; }
+    public AdfDocument Body { get; set; }
 
     /// <summary>
     ///     When was the comment created

@@ -70,6 +70,16 @@ public interface IJiraClient
     IGreenhopperDomain Greenhopper { get; }
 
     /// <summary>
+    ///     Group domain
+    /// </summary>
+    IGroupDomain Group { get; }
+
+    /// <summary>
+    ///     Screen domain
+    /// </summary>
+    IScreenDomain Screen { get; }
+
+    /// <summary>
     ///     Set Basic Authentication for the current client
     /// </summary>
     /// <param name="user">username</param>

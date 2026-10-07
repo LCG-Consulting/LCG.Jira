@@ -3,18 +3,14 @@
 
 using Dapplo.HttpExtensions.JsonNet;
 
-#if NET471
-using System.Net.Cache;
-
-#endif
-
 namespace Dapplo.Jira
 {
     /// <summary>
-    ///     A client for accessing the Atlassian JIRA Api via REST, using Dapplo.HttpExtensions
+    ///     A client for accessing the Atlassian JIRA Api via REST
+    ///     NOTE: Modernization in progress - currently using Dapplo.HttpExtensions, will migrate to RestSharp
     /// </summary>
     public class JiraClient : IProjectDomain, IWorkLogDomain, IUserDomain, ISessionDomain, IIssueDomain, IFilterDomain, IAttachmentDomain, IServerDomain, IAgileDomain,
-        IGreenhopperDomain
+        IGreenhopperDomain, IGroupDomain, IScreenDomain
     {
         private string password;
         private string user;
@@ -41,7 +37,8 @@ namespace Dapplo.Jira
             Behaviour = ConfigureBehaviour(new HttpBehaviour(), httpSettings);
 
             JiraBaseUri = baseUri;
-            JiraRestUri = baseUri.AppendSegments("rest", "api", "3");
+            JiraRestUri = baseUri.AppendSegments("rest", "api", "2");
+            JiraV3RestUri = baseUri.AppendSegments("rest", "api", "3");
             JiraAuthUri = baseUri.AppendSegments("rest", "auth", "1");
             JiraAgileRestUri = baseUri.AppendSegments("rest", "agile", "1.0");
             JiraGreenhopperRestUri = baseUri.AppendSegments("rest", "greenhopper", "1.0");
@@ -56,22 +53,9 @@ namespace Dapplo.Jira
         public IHttpBehaviour ConfigureBehaviour(IChangeableHttpBehaviour behaviour, IHttpSettings httpSettings = null)
         {
             behaviour.HttpSettings = httpSettings ?? HttpExtensionsGlobals.HttpSettings.ShallowClone();
-#if NET471
-            // Disable caching, if no HTTP settings were provided.
-            if (httpSettings == null)
-            {
-                behaviour.HttpSettings.RequestCacheLevel = RequestCacheLevel.NoCacheNoStore;
-            }
-#endif
 
             // Using our own Json Serializer, implemented with Json.NET
-            var defaultJsonSerializerSettings = new JsonNetJsonSerializer().Settings;
-            defaultJsonSerializerSettings.MaxDepth = 128;
-
-            behaviour.JsonSerializer = new JsonNetJsonSerializer()
-            {
-                Settings = defaultJsonSerializerSettings
-            };
+            behaviour.JsonSerializer = new JsonNetJsonSerializer();
 
             behaviour.OnHttpRequestMessageCreated = httpMessage =>
             {
@@ -100,7 +84,11 @@ namespace Dapplo.Jira
         /// </summary>
         public Uri JiraRestUri { get; }
 
-
+        /// <summary>
+        ///     The rest V3 URI for your JIRA server
+        /// </summary>
+        public Uri JiraV3RestUri { get; }
+        
         /// <summary>
         ///     The agile rest URI for your JIRA server
         /// </summary>
@@ -189,5 +177,15 @@ namespace Dapplo.Jira
         ///     Greenhopper domain
         /// </summary>
         public IGreenhopperDomain Greenhopper => this;
+
+        /// <summary>
+        ///     Group domain
+        /// </summary>
+        public IGroupDomain Group => this;
+
+        /// <summary>
+        ///     Screen domain
+        /// </summary>
+        public IScreenDomain Screen => this;
     }
 }

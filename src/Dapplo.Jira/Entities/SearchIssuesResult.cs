@@ -1,4 +1,4 @@
-﻿// Copyright (c) Dapplo and contributors. All rights reserved.
+// Copyright (c) Dapplo and contributors. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections;
@@ -7,7 +7,7 @@ using Newtonsoft.Json;
 namespace Dapplo.Jira.Entities;
 
 /// <summary>
-///     Search result information, see <a href="https://docs.atlassian.com/jira/REST/latest/#api/2/search-search">here</a>
+///     Search result information, see <a href="https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-post">here</a>
 /// </summary>
 [JsonObject]
 public class SearchIssuesResult<TIssue, TSearch> : PageableResult, IEnumerable<TIssue> where TIssue : IssueBase
@@ -43,12 +43,12 @@ public class SearchIssuesResult<TIssue, TSearch> : PageableResult, IEnumerable<T
     public int Count => Issues?.Count ?? 0;
 
     /// <summary>
-    /// Retrieve the next page, this is based upon the number of items that was returned
+    /// Retrieve the next page, this is based upon the next page token
     /// </summary>
     [JsonIgnore]
     public Page NextPage => new Page
     {
-        StartAt = StartAt + (Issues?.Count ?? 0),
+        NextPageToken = this.NextPageToken,
         MaxResults = MaxResults
     };
 

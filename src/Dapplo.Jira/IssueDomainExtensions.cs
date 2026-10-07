@@ -1,11 +1,6 @@
 // Copyright (c) Dapplo and contributors. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System;
-using System.Net.Http;
-using Dapplo.HttpExtensions;
-using Dapplo.HttpExtensions.Factory;
-
 namespace Dapplo.Jira;
 
 /// <summary>
@@ -38,7 +33,7 @@ public static class IssueDomainExtensions
         Log.Debug().WriteLine("Adding comment to {0}", issueKey);
         var comment = new Comment
         {
-            Body = body,
+            Body = AdfDocument.FromText(body),
             Visibility = visibility
         };
         jiraClient.Behaviour.MakeCurrent();
@@ -60,7 +55,7 @@ public static class IssueDomainExtensions
     public static async Task<TIssue> GetAsync<TIssue, TFields>(this IIssueDomain jiraClient, string issueKey, IEnumerable<string> fields = null,
         IEnumerable<string> expand = null, CancellationToken cancellationToken = default)
         where TIssue : IssueWithFields<TFields>
-        where TFields : IssueFields
+        where TFields : IssueFieldsV2
     {
         if (issueKey == null)
         {
@@ -98,15 +93,15 @@ public static class IssueDomainExtensions
     /// <param name="expand">IEnumerable of string to specified which fields to expand</param>
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns>Issue</returns>
-    public static Task<Issue> GetAsync(this IIssueDomain jiraClient, string issueKey, IEnumerable<string> fields = null, IEnumerable<string> expand = null,
+    public static Task<IssueV2> GetAsync(this IIssueDomain jiraClient, string issueKey, IEnumerable<string> fields = null, IEnumerable<string> expand = null,
         CancellationToken cancellationToken = default)
     {
-        return jiraClient.GetAsync<Issue, IssueFields>(issueKey, fields, expand, cancellationToken);
+        return jiraClient.GetAsync<IssueV2, IssueFieldsV2>(issueKey, fields, expand, cancellationToken);
     }
 
     /// <summary>
     ///     Search for issues, with a JQL (e.g. from a filter)
-    ///     See: https://docs.atlassian.com/jira/REST/latest/#d2e2713
+    ///     See: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-post
     /// </summary>
     /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
     /// <param name="jql">Jira Query Language, like SQL, for the search. Use Where builder</param>
@@ -131,7 +126,7 @@ public static class IssueDomainExtensions
 
     /// <summary>
     ///     Search for issues, with a JQL (e.g. from a filter)
-    ///     See: https://docs.atlassian.com/jira/REST/latest/#d2e2713
+    ///     See: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-post
     /// </summary>
     /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
     /// <param name="jql">Jira Query Language, like SQL, for the search</param>
@@ -156,26 +151,30 @@ public static class IssueDomainExtensions
         var search = new JqlIssueSearch
         {
             Jql = jql,
-            //ValidateQuery = true,
             MaxResults = page?.MaxResults ?? 20,
-            StartAt = page?.StartAt ?? 0,
-            Fields = fields ?? new List<string>(JiraConfig.SearchFields),
-            Expand = expand ?? (JiraConfig.ExpandSearch != null ? new List<string>(JiraConfig.ExpandSearch) : null)
+            NextPageToken = page?.NextPageToken ?? null
         };
+        if (expand != null)
+        {
+            search.Expand = string.Join(",",expand);
+        }
+        if (fields != null)
+        {
+            search.Fields = fields;
+        }
         return jiraClient.SearchAsync(search, cancellationToken);
     }
 
     /// <summary>
     ///     Search for issues, with a JQL (e.g. from a filter)
-    ///     See: https://docs.atlassian.com/jira/REST/latest/#d2e2713
+    ///     See: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-post
     /// </summary>
     /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
     /// <param name="search">Search information, with Jira Query Language, like SQL, for the search</param>
     /// <param name="page">Page with paging information, overwriting the page info in the search.</param>
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns>SearchIssuesResult</returns>
-    public static Task<SearchIssuesResult<Issue, JqlIssueSearch>> SearchAsync(this IIssueDomain jiraClient, JqlIssueSearch search, Page page = null,
-        CancellationToken cancellationToken = default)
+    public static Task<SearchIssuesResult<Issue, JqlIssueSearch>> SearchAsync(this IIssueDomain jiraClient, JqlIssueSearch search, Page page = null, CancellationToken cancellationToken = default)
     {
         if (search == null)
         {
@@ -185,7 +184,7 @@ public static class IssueDomainExtensions
         if (page != null)
         {
             search.MaxResults = page.MaxResults ?? 20;
-            search.StartAt = page.StartAt ?? 0;
+            search.NextPageToken = page.NextPageToken ?? null;
         }
 
         return jiraClient.SearchAsync(search, cancellationToken);
@@ -193,7 +192,7 @@ public static class IssueDomainExtensions
 
     /// <summary>
     ///     Search for issues, with a JQL (e.g. from a filter)
-    ///     See: https://docs.atlassian.com/jira/REST/latest/#d2e2713
+    ///     See: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-post
     /// </summary>
     /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
     /// <param name="search">The search arguments</param>
@@ -210,19 +209,8 @@ public static class IssueDomainExtensions
         Log.Debug().WriteLine("Searching via JQL: {0}", search.Jql);
 
         jiraClient.Behaviour.MakeCurrent();
-        var searchUri = jiraClient.JiraRestUri.AppendSegments("search", "jql");
-        //var result = default(SearchIssuesResult<Issue, JqlIssueSearch>);
-
-        //using (var client = HttpClientFactory.Create(searchUri))
-        //using (var httpRequestMessage = HttpRequestMessageFactory.CreatePost(searchUri, search))
-        //{
-        //    var httpResponse = await client.SendAsync(httpRequestMessage, cancellationToken).ConfigureAwait(false);
-
-        //    httpResponse.EnsureSuccessStatusCode();
-
-        //    var text = await httpResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
-        //    text = string.Empty;
-        //}
+        // Use API v3 for search endpoint as v2 was removed (https://developer.atlassian.com/changelog/#CHANGE-2046)
+        var searchUri = jiraClient.JiraV3RestUri.AppendSegments("search", "jql");
 
         var response = await searchUri
             .PostAsync<HttpResponse<SearchIssuesResult<Issue, JqlIssueSearch>, Error>>(search, cancellationToken)
@@ -411,7 +399,7 @@ public static class IssueDomainExtensions
     /// <returns>Issue</returns>
     public static async Task<IssueWithFields<TFields>> CreateAsync<TFields>(this IIssueDomain jiraClient, IssueWithFields<TFields> issue,
         CancellationToken cancellationToken = default)
-        where TFields : IssueFields
+        where TFields : BaseIssueFields
     {
         if (issue == null)
         {
@@ -420,7 +408,15 @@ public static class IssueDomainExtensions
 
         Log.Debug().WriteLine("Creating issue {0}", issue);
         jiraClient.Behaviour.MakeCurrent();
-        var issueUri = jiraClient.JiraRestUri.AppendSegments("issue");
+        Uri issueUri;
+        if (issue.Fields is IssueFields)
+        {
+            issueUri = jiraClient.JiraV3RestUri.AppendSegments("issue");
+        } else
+        {
+            issueUri = jiraClient.JiraRestUri.AppendSegments("issue");
+        }
+        
         var response = await issueUri.PostAsync<HttpResponse<IssueWithFields<TFields>, Error>>(issue, cancellationToken).ConfigureAwait(false);
         return response.HandleErrors(HttpStatusCode.Created);
     }
@@ -538,5 +534,283 @@ public static class IssueDomainExtensions
     {
         return jiraClient.User.GetAssignableUsersAsync(issueKey: issueKey, username: userPattern, startAt: startAt, maxResults: maxResults,
             cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    ///     Get the changelog/history for the specified issue
+    ///     This provides information about field changes over time, who made changes, and when they occurred
+    ///     See: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-changelog-get
+    /// </summary>
+    /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
+    /// <param name="issueKey">the issue key</param>
+    /// <param name="startAt">optional int with the start index, used for paging (default: 0)</param>
+    /// <param name="maxResults">optional int with the maximum number of results (default: 100)</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>Changelog with pageable history information</returns>
+    public static async Task<Changelog> GetChangelogAsync(this IIssueDomain jiraClient, string issueKey, int? startAt = null, int? maxResults = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (issueKey == null)
+        {
+            throw new ArgumentNullException(nameof(issueKey));
+        }
+
+        Log.Debug().WriteLine("Retrieving changelog for {0}", issueKey);
+        var changelogUri = jiraClient.JiraRestUri.AppendSegments("issue", issueKey, "changelog");
+        
+        if (startAt.HasValue)
+        {
+            changelogUri = changelogUri.ExtendQuery("startAt", startAt.Value);
+        }
+        
+        if (maxResults.HasValue)
+        {
+            changelogUri = changelogUri.ExtendQuery("maxResults", maxResults.Value);
+        }
+
+        jiraClient.Behaviour.MakeCurrent();
+
+        var response = await changelogUri.GetAsAsync<HttpResponse<Changelog, Error>>(cancellationToken).ConfigureAwait(false);
+        return response.HandleErrors();
+    }
+
+    /// <summary>
+    ///     Get vote information for an issue
+    ///     See: https://docs.atlassian.com/jira/REST/latest/#api/2/issue-getVotes
+    /// </summary>
+    /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
+    /// <param name="issueKey">Key for the issue</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>VoteInfo with vote count and voters</returns>
+    public static async Task<VoteInfo> GetVotesAsync(this IIssueDomain jiraClient, string issueKey, CancellationToken cancellationToken = default)
+    {
+        if (issueKey == null)
+        {
+            throw new ArgumentNullException(nameof(issueKey));
+        }
+
+        Log.Debug().WriteLine("Retrieving votes for {0}", issueKey);
+        jiraClient.Behaviour.MakeCurrent();
+        var votesUri = jiraClient.JiraRestUri.AppendSegments("issue", issueKey, "votes");
+        var response = await votesUri.GetAsAsync<HttpResponse<VoteInfo, Error>>(cancellationToken).ConfigureAwait(false);
+        return response.HandleErrors();
+    }
+
+    /// <summary>
+    ///     Add a vote for an issue
+    ///     See: https://docs.atlassian.com/jira/REST/latest/#api/2/issue-addVote
+    /// </summary>
+    /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
+    /// <param name="issueKey">Key for the issue to vote on</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    public static async Task AddVoteAsync(this IIssueDomain jiraClient, string issueKey, CancellationToken cancellationToken = default)
+    {
+        if (issueKey == null)
+        {
+            throw new ArgumentNullException(nameof(issueKey));
+        }
+
+        Log.Debug().WriteLine("Adding vote to {0}", issueKey);
+        jiraClient.Behaviour.MakeCurrent();
+        var votesUri = jiraClient.JiraRestUri.AppendSegments("issue", issueKey, "votes");
+        var response = await votesUri.PostAsync<HttpResponse>(cancellationToken).ConfigureAwait(false);
+        response.HandleStatusCode(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>
+    ///     Remove vote from an issue
+    ///     See: https://docs.atlassian.com/jira/REST/latest/#api/2/issue-removeVote
+    /// </summary>
+    /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
+    /// <param name="issueKey">Key for the issue to remove vote from</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    public static async Task RemoveVoteAsync(this IIssueDomain jiraClient, string issueKey, CancellationToken cancellationToken = default)
+    {
+        if (issueKey == null)
+        {
+            throw new ArgumentNullException(nameof(issueKey));
+        }
+
+        Log.Debug().WriteLine("Removing vote from {0}", issueKey);
+        jiraClient.Behaviour.MakeCurrent();
+        var votesUri = jiraClient.JiraRestUri.AppendSegments("issue", issueKey, "votes");
+        var response = await votesUri.DeleteAsync<HttpResponse>(cancellationToken).ConfigureAwait(false);
+        response.HandleStatusCode(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>
+    ///     Get watchers for the specified issue
+    ///     See: https://docs.atlassian.com/jira/REST/latest/#api/2/issue-getIssueWatchers
+    /// </summary>
+    /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
+    /// <param name="issueKey">the issue key</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>Watches with list of watchers</returns>
+    public static async Task<Watches> GetWatchersAsync(this IIssueDomain jiraClient, string issueKey, CancellationToken cancellationToken = default)
+    {
+        if (issueKey == null)
+        {
+            throw new ArgumentNullException(nameof(issueKey));
+        }
+
+        Log.Debug().WriteLine("Retrieving watchers for {0}", issueKey);
+        jiraClient.Behaviour.MakeCurrent();
+        var watchersUri = jiraClient.JiraRestUri.AppendSegments("issue", issueKey, "watchers");
+        var response = await watchersUri.GetAsAsync<HttpResponse<Watches, Error>>(cancellationToken).ConfigureAwait(false);
+        return response.HandleErrors();
+    }
+
+    /// <summary>
+    ///     Add a watcher to the specified issue
+    ///     See: https://docs.atlassian.com/jira/REST/latest/#api/2/issue-addWatcher
+    /// </summary>
+    /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
+    /// <param name="issueKey">the issue key</param>
+    /// <param name="username">Username of the user to add as a watcher. For Jira Cloud, use accountId instead.</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    public static async Task AddWatcherAsync(this IIssueDomain jiraClient, string issueKey, string username, CancellationToken cancellationToken = default)
+    {
+        if (issueKey == null)
+        {
+            throw new ArgumentNullException(nameof(issueKey));
+        }
+        if (username == null)
+        {
+            throw new ArgumentNullException(nameof(username));
+        }
+
+        Log.Debug().WriteLine("Adding watcher {0} to {1}", username, issueKey);
+        jiraClient.Behaviour.MakeCurrent();
+        var watchersUri = jiraClient.JiraRestUri.AppendSegments("issue", issueKey, "watchers");
+        var response = await watchersUri.PostAsync<HttpResponse>(username, cancellationToken).ConfigureAwait(false);
+        response.HandleStatusCode(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>
+    ///     Remove a watcher from the specified issue
+    ///     See: https://docs.atlassian.com/jira/REST/latest/#api/2/issue-removeWatcher
+    /// </summary>
+    /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
+    /// <param name="issueKey">the issue key</param>
+    /// <param name="username">Username of the user to remove as a watcher. For Jira Cloud, use accountId instead.</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    public static async Task RemoveWatcherAsync(this IIssueDomain jiraClient, string issueKey, string username, CancellationToken cancellationToken = default)
+    {
+        if (issueKey == null)
+        {
+            throw new ArgumentNullException(nameof(issueKey));
+        }
+        if (username == null)
+        {
+            throw new ArgumentNullException(nameof(username));
+        }
+
+        Log.Debug().WriteLine("Removing watcher {0} from {1}", username, issueKey);
+        jiraClient.Behaviour.MakeCurrent();
+        var watchersUri = jiraClient.JiraRestUri.AppendSegments("issue", issueKey, "watchers").ExtendQuery("username", username);
+        var response = await watchersUri.DeleteAsync<HttpResponse>(cancellationToken).ConfigureAwait(false);
+        response.HandleStatusCode(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>
+    ///     Get all property keys for an issue
+    ///     See: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-properties/#api-rest-api-3-issue-issueidorkey-properties-get
+    /// </summary>
+    /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
+    /// <param name="issueKey">the issue key</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>PropertyKeys containing the list of property keys</returns>
+    public static async Task<PropertyKeys> GetPropertyKeysAsync(this IIssueDomain jiraClient, string issueKey, CancellationToken cancellationToken = default)
+    {
+        if (issueKey == null)
+        {
+            throw new ArgumentNullException(nameof(issueKey));
+        }
+
+        Log.Debug().WriteLine("Retrieving property keys for issue {0}", issueKey);
+        var propertyUri = jiraClient.JiraRestUri.AppendSegments("issue", issueKey, "properties");
+        jiraClient.Behaviour.MakeCurrent();
+        var response = await propertyUri.GetAsAsync<HttpResponse<PropertyKeys, Error>>(cancellationToken).ConfigureAwait(false);
+        return response.HandleErrors();
+    }
+
+    /// <summary>
+    ///     Get a specific property value for an issue
+    ///     See: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-properties/#api-rest-api-3-issue-issueidorkey-properties-propertykey-get
+    /// </summary>
+    /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
+    /// <param name="issueKey">the issue key</param>
+    /// <param name="propertyKey">the property key</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>IssueProperty containing the property key and value</returns>
+    public static async Task<IssueProperty> GetPropertyAsync(this IIssueDomain jiraClient, string issueKey, string propertyKey, CancellationToken cancellationToken = default)
+    {
+        if (issueKey == null)
+        {
+            throw new ArgumentNullException(nameof(issueKey));
+        }
+        if (propertyKey == null)
+        {
+            throw new ArgumentNullException(nameof(propertyKey));
+        }
+
+        Log.Debug().WriteLine("Retrieving property {0} for issue {1}", propertyKey, issueKey);
+        var propertyUri = jiraClient.JiraRestUri.AppendSegments("issue", issueKey, "properties", propertyKey);
+        jiraClient.Behaviour.MakeCurrent();
+        var response = await propertyUri.GetAsAsync<HttpResponse<IssueProperty, Error>>(cancellationToken).ConfigureAwait(false);
+        return response.HandleErrors();
+    }
+
+    /// <summary>
+    ///     Set or update a property on an issue
+    ///     See: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-properties/#api-rest-api-3-issue-issueidorkey-properties-propertykey-put
+    /// </summary>
+    /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
+    /// <param name="issueKey">the issue key</param>
+    /// <param name="propertyKey">the property key</param>
+    /// <param name="propertyValue">the property value (can be any object that will be serialized to JSON)</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    public static async Task SetPropertyAsync(this IIssueDomain jiraClient, string issueKey, string propertyKey, object propertyValue, CancellationToken cancellationToken = default)
+    {
+        if (issueKey == null)
+        {
+            throw new ArgumentNullException(nameof(issueKey));
+        }
+        if (propertyKey == null)
+        {
+            throw new ArgumentNullException(nameof(propertyKey));
+        }
+
+        Log.Debug().WriteLine("Setting property {0} for issue {1}", propertyKey, issueKey);
+        jiraClient.Behaviour.MakeCurrent();
+        var propertyUri = jiraClient.JiraRestUri.AppendSegments("issue", issueKey, "properties", propertyKey);
+        var response = await propertyUri.PutAsync<HttpResponse>(propertyValue, cancellationToken).ConfigureAwait(false);
+        response.HandleStatusCode(HttpStatusCode.OK, HttpStatusCode.Created);
+    }
+
+    /// <summary>
+    ///     Delete a property from an issue
+    ///     See: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-properties/#api-rest-api-3-issue-issueidorkey-properties-propertykey-delete
+    /// </summary>
+    /// <param name="jiraClient">IIssueDomain to bind the extension method to</param>
+    /// <param name="issueKey">the issue key</param>
+    /// <param name="propertyKey">the property key</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    public static async Task DeletePropertyAsync(this IIssueDomain jiraClient, string issueKey, string propertyKey, CancellationToken cancellationToken = default)
+    {
+        if (issueKey == null)
+        {
+            throw new ArgumentNullException(nameof(issueKey));
+        }
+        if (propertyKey == null)
+        {
+            throw new ArgumentNullException(nameof(propertyKey));
+        }
+
+        Log.Debug().WriteLine("Deleting property {0} from issue {1}", propertyKey, issueKey);
+        jiraClient.Behaviour.MakeCurrent();
+        var propertyUri = jiraClient.JiraRestUri.AppendSegments("issue", issueKey, "properties", propertyKey);
+        var response = await propertyUri.DeleteAsync<HttpResponse>(cancellationToken).ConfigureAwait(false);
+        response.HandleStatusCode(HttpStatusCode.NoContent);
     }
 }
