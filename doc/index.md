@@ -1,3 +1,5 @@
+This is a simple fork of the repository at https://github.com/dapplo/Dapplo.Jira.
+=======
 # Dapplo.Jira<!-- include: readme.md -->
 This is a simple REST based JIRA client, written for Greenshot, by using Dapplo.HttpExtension
 

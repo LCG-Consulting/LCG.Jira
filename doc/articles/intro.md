@@ -1,3 +1,5 @@
+This is a simple fork of the repository at https://github.com/dapplo/Dapplo.Jira.
+=======
 # Dapplo.Jira<!-- include: readme.md -->
 This is a simple REST based JIRA client, written for Greenshot, by using Dapplo.HttpExtension
 
@@ -50,4 +52,4 @@ foreach (var issue in searchResult.Issues)
 ```
 <sup><a href='/src/Dapplo.Jira.Tests/IssueTests.cs#L307-L327' title='Snippet source file'>snippet source</a> | <a href='#snippet-SearchExample' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
-<!-- endInclude -->
+>>>>>>> upstream/master<!-- endInclude -->
